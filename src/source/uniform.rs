@@ -1,10 +1,11 @@
 use std::cmp;
 use std::time::Duration;
 
+use cpal::ChannelCount;
 use dasp_sample::FromSample;
 
 use super::SeekError;
-use crate::common::{ChannelCount, SampleRate};
+use crate::common::SampleRate;
 use crate::conversions::{ChannelCountConverter, DataConverter, SampleRateConverter};
 use crate::{Sample, Source};
 
@@ -60,7 +61,10 @@ where
         // Limit the span length to something reasonable
         let span_len = input.current_span_len().map(|x| x.min(32768));
 
-        let from_channels = input.channels();
+        let from_channels = match input.channels() {
+            0 => target_channels,
+            n => n,
+        };
         let from_sample_rate = input.sample_rate();
 
         let input = Take {
