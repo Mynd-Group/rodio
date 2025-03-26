@@ -10,7 +10,7 @@ exclude = ["assets/**", "tests/**"]
 edition = "2021"
 
 [dependencies]
-cpal = { version = "0.15.3", optional = true }
+cpal = { git = "https://github.com/RustAudio/cpal.git", rev = "c5a163e1332faa505948fe9550b85faf14c1322a", optional = true }
 dasp_sample = "0.11.0"
 claxon = { version = "0.4.2", optional = true }
 hound = { version = "3.3.1", optional = true }
@@ -41,7 +41,6 @@ minimp3 = ["dep:minimp3_fixed"]
 noise = ["rand"]
 
 wasm-bindgen = ["cpal/wasm-bindgen"]
-cpal-shared-stdcxx = ["cpal/oboe-shared-stdcxx"]
 
 symphonia-aac = ["symphonia/aac"]
 symphonia-all = [
