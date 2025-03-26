@@ -45,7 +45,7 @@ where
 
     #[inline]
     fn channels(&self) -> ChannelCount {
-        0
+        1
     }
 
     #[inline]
