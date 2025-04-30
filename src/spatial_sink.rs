@@ -6,7 +6,7 @@ use dasp_sample::FromSample;
 
 use crate::mixer::Mixer;
 use crate::source::{SeekError, Spatial};
-use crate::{Sample, Sink, Source};
+use crate::{Sink, Source};
 
 /// A sink that allows changing the position of the source and the listeners
 /// ears while playing. The sources played are then transformed to give a simple
@@ -25,7 +25,7 @@ struct SoundPositions {
 impl SpatialSink {
     /// Builds a new `SpatialSink`.
     pub fn connect_new(
-        mixer: &Mixer<f32>,
+        mixer: &Mixer,
         emitter_position: [f32; 3],
         left_ear: [f32; 3],
         right_ear: [f32; 3],
@@ -61,7 +61,6 @@ impl SpatialSink {
     where
         S: Source + Send + 'static,
         f32: FromSample<S::Item>,
-        S::Item: Sample + Send,
     {
         let positions = self.positions.clone();
         let pos_lock = self.positions.lock().unwrap();
@@ -109,7 +108,7 @@ impl SpatialSink {
     /// - If you set the speed to 2 the total duration will be halve of what it
     ///   was.
     ///
-    /// See [`Speed`] for details
+    /// See [`Speed`](crate::source::Speed) for details
     #[inline]
     pub fn speed(&self) -> f32 {
         self.sink.speed()

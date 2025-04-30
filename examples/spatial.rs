@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::io::BufReader;
 use std::thread;
 use std::time::Duration;
 
@@ -23,14 +22,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut positions = ([0., 0., 0.], [-1., 0., 0.], [1., 0., 0.]);
     let sink = rodio::SpatialSink::connect_new(
-        &stream_handle.mixer(),
+        stream_handle.mixer(),
         positions.0,
         positions.1,
         positions.2,
     );
 
     let file = std::fs::File::open("assets/music.ogg")?;
-    let source = rodio::Decoder::new(BufReader::new(file))?
+    let source = rodio::Decoder::try_from(file)?
         .repeat_infinite()
         .take_duration(total_duration);
     sink.append(source);

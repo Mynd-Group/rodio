@@ -10,14 +10,10 @@
 //! - Add the source to the output stream using [`OutputStream::mixer()`](OutputStream::mixer)
 //!   on the output stream handle.
 //!
-//! The output stream expects the sources to produce [`f32`]s. In case the output sample format
-//! is different use [`.convert_samples()`](Source::convert_samples) to adapt them.
-//!
 //! Here is a complete example of how you would play an audio file:
 //!
 //! ```no_run
 //! use std::fs::File;
-//! use std::io::BufReader;
 //! use rodio::{Decoder, OutputStream, source::Source};
 //!
 //! // Get an output stream handle to the default physical sound device.
@@ -26,18 +22,18 @@
 //!         .expect("open default audio stream");
 //! let sink = rodio::Sink::connect_new(&stream_handle.mixer());
 //! // Load a sound from a file, using a path relative to Cargo.toml
-//! let file = BufReader::new(File::open("examples/music.ogg").unwrap());
+//! let file = File::open("examples/music.ogg").unwrap();
 //! // Decode that sound file into a source
-//! let source = Decoder::new(file).unwrap();
+//! let source = Decoder::try_from(file).unwrap();
 //! // Play the sound directly on the device
-//! stream_handle.mixer().add(source.convert_samples());
+//! stream_handle.mixer().add(source);
 //!
 //! // The sound plays in a separate audio thread,
 //! // so we need to keep the main thread alive while it's playing.
 //! std::thread::sleep(std::time::Duration::from_secs(5));
 //! ```
 //!
-//! [rodio::play()] helps to simplify the above
+//! [`rodio::play()`](crate::play) helps to simplify the above
 //! ```no_run
 //! use std::fs::File;
 //! use std::io::BufReader;
@@ -68,10 +64,8 @@
 //! and [`.append()`](Sink::append) your sound to it.
 //!
 //! ```no_run
-//! use std::fs::File;
-//! use std::io::BufReader;
 //! use std::time::Duration;
-//! use rodio::{Decoder, OutputStream, Sink};
+//! use rodio::{OutputStream, Sink};
 //! use rodio::source::{SineWave, Source};
 //!
 //! // _stream must live as long as the sink
@@ -142,12 +136,6 @@
 //!
 //! The "playback" feature adds support for playing audio. This feature requires the "cpal" crate.
 //!
-//! ### Feature "integer-decoder"
-//!
-//! The "integer-decoder" changes the output format of the decoders to use `i16` instead of `f32`.
-//! This is useful if you want to decode audio on an exotic, low-spec or old device that does not
-//! have hardware support for floating-point operations.
-//!
 //! ## How it works under the hood
 //!
 //! Rodio spawns a background thread that is dedicated to reading from the sources and sending
@@ -167,7 +155,7 @@ pub use cpal::{
 };
 
 mod common;
-mod conversions;
+mod math;
 mod sink;
 mod spatial_sink;
 #[cfg(feature = "playback")]
@@ -176,14 +164,14 @@ mod stream;
 mod wav_output;
 
 pub mod buffer;
+pub mod conversions;
 pub mod decoder;
 pub mod mixer;
 pub mod queue;
 pub mod source;
 pub mod static_buffer;
 
-pub use crate::common::{ChannelCount, SampleRate};
-pub use crate::conversions::Sample;
+pub use crate::common::{ChannelCount, Sample, SampleRate};
 pub use crate::decoder::Decoder;
 pub use crate::sink::Sink;
 pub use crate::source::Source;

@@ -2,7 +2,6 @@ use rodio::source::Source;
 use rodio::Decoder;
 use std::error::Error;
 use std::fs::File;
-use std::io::BufReader;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -10,11 +9,11 @@ use std::time::Duration;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let stream_handle = rodio::OutputStreamBuilder::open_default_stream()?;
-    let sink = rodio::Sink::connect_new(&stream_handle.mixer());
+    let sink = rodio::Sink::connect_new(stream_handle.mixer());
 
     // Decode the sound file into a source
-    let file = BufReader::new(File::open("assets/music.flac")?);
-    let source = Decoder::new(file)?;
+    let file = File::open("assets/music.flac")?;
+    let source = Decoder::try_from(file)?;
 
     // Apply automatic gain control to the source
     let agc_source = source.automatic_gain_control(1.0, 4.0, 0.005, 5.0);
