@@ -238,7 +238,7 @@ dependencies = [
 [[package]]
 name = "cpal"
 version = "0.15.3"
-source = "git+https://github.com/Mynd-Group/cpal.git?rev=827a11ce4d3897120882468941849d65893c9f1d#827a11ce4d3897120882468941849d65893c9f1d"
+source = "git+https://github.com/Mynd-Group/cpal.git?rev=9826dff08885229179a6f786b62eeaa9b3eff581#9826dff08885229179a6f786b62eeaa9b3eff581"
 dependencies = [
  "alsa",
  "core-foundation-sys",
