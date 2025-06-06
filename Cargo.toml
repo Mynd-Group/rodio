@@ -10,7 +10,7 @@ exclude = ["assets/**", "tests/**"]
 edition = "2021"
 
 [dependencies]
-cpal = { git = "https://github.com/Mynd-Group/cpal.git", rev = "a4e3bec635b9f6a9f1612206c763b62dc7726a79", optional = true }
+cpal = { git = "https://github.com/Mynd-Group/cpal", rev = "e1b26fdc03ffd0d38603b32672704b9f2035c411", optional = true }
 dasp_sample = "0.11.0"
 claxon = { version = "0.4.2", optional = true }
 hound = { version = "3.3.1", optional = true }
