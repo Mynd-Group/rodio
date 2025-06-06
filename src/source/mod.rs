@@ -5,6 +5,7 @@ use core::time::Duration;
 
 use crate::common::{ChannelCount, SampleRate};
 use crate::Sample;
+use amplify::to_linear;
 use dasp_sample::FromSample;
 
 pub use self::agc::AutomaticGainControl;
@@ -15,6 +16,7 @@ pub use self::channel_volume::ChannelVolume;
 pub use self::chirp::{chirp, Chirp};
 pub use self::crossfade::Crossfade;
 pub use self::delay::Delay;
+pub use self::distortion::Distortion;
 pub use self::done::Done;
 pub use self::empty::Empty;
 pub use self::empty_callback::EmptyCallback;
@@ -29,7 +31,7 @@ pub use self::periodic::PeriodicAccess;
 pub use self::position::TrackPosition;
 pub use self::repeat::Repeat;
 pub use self::sawtooth::SawtoothWave;
-pub use self::signal_generator::{Function, SignalGenerator};
+pub use self::signal_generator::{Function, GeneratorFunction, SignalGenerator};
 pub use self::sine::SineWave;
 pub use self::skip::SkipDuration;
 pub use self::skippable::Skippable;
@@ -50,6 +52,7 @@ mod channel_volume;
 mod chirp;
 mod crossfade;
 mod delay;
+mod distortion;
 mod done;
 mod empty;
 mod empty_callback;
@@ -240,6 +243,41 @@ pub trait Source: Iterator<Item = Sample> {
         Self: Sized,
     {
         amplify::amplify(self, value)
+    }
+
+    /// Amplifies the sound logarithmically by the given value.
+    #[inline]
+    fn amplify_decibel(self, value: f32) -> Amplify<Self>
+    where
+        Self: Sized,
+    {
+        amplify::amplify(self, to_linear(value))
+    }
+
+    /// Normalized amplification in `[0.0, 1.0]` range. This method better matches the perceived
+    /// loudness of sounds in human hearing and is recommended to use when you want to change
+    /// volume in `[0.0, 1.0]` range.
+    /// based on article: <https://www.dr-lex.be/info-stuff/volumecontrols.html>
+    ///
+    /// **note: it clamps values outside this range.**
+    #[inline]
+    fn amplify_normalized(self, value: f32) -> Amplify<Self>
+    where
+        Self: Sized,
+    {
+        const NORMALIZATION_MIN: f32 = 0.0;
+        const NORMALIZATION_MAX: f32 = 1.0;
+        const LOG_VOLUME_GROWTH_RATE: f32 = 6.907_755_4;
+        const LOG_VOLUME_SCALE_FACTOR: f32 = 1000.0;
+
+        let value = value.clamp(NORMALIZATION_MIN, NORMALIZATION_MAX);
+
+        let mut amplitude = f32::exp(LOG_VOLUME_GROWTH_RATE * value) / LOG_VOLUME_SCALE_FACTOR;
+        if value < 0.1 {
+            amplitude *= value * 10.0;
+        }
+
+        amplify::amplify(self, amplitude)
     }
 
     /// Applies automatic gain control to the sound.
@@ -536,6 +574,15 @@ pub trait Source: Iterator<Item = Sample> {
         Self: Source<Item = f32>,
     {
         blt::high_pass_with_q(self, freq, q)
+    }
+
+    /// Applies a distortion effect to the sound.
+    #[inline]
+    fn distortion(self, gain: f32, threshold: f32) -> Distortion<Self>
+    where
+        Self: Sized,
+    {
+        distortion::distortion(self, gain, threshold)
     }
 
     // There is no `can_seek()` method as it is impossible to use correctly. Between

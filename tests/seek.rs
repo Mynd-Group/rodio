@@ -1,3 +1,8 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
+#[cfg(feature = "symphonia-mp3")]
+use rodio::{decoder::symphonia, source::SeekError};
 use rodio::{ChannelCount, Decoder, Source};
 use rstest::rstest;
 use rstest_reuse::{self, *};
@@ -5,6 +10,17 @@ use std::io::{Read, Seek};
 use std::path::Path;
 use std::time::Duration;
 
+#[cfg(any(
+    feature = "flac",
+    feature = "minimp3",
+    feature = "symphonia-aac",
+    feature = "symphonia-flac",
+    feature = "symphonia-mp3",
+    feature = "symphonia-isomp4",
+    feature = "symphonia-ogg",
+    feature = "symphonia-wav",
+    feature = "wav",
+))]
 #[template]
 #[rstest]
 #[cfg_attr(
@@ -37,6 +53,14 @@ fn all_decoders(
 ) {
 }
 
+#[cfg(any(
+    feature = "symphonia-flac",
+    feature = "symphonia-mp3",
+    feature = "symphonia-isomp4",
+    feature = "symphonia-ogg",
+    feature = "symphonia-wav",
+    feature = "wav",
+))]
 #[template]
 #[rstest]
 #[cfg_attr(
@@ -56,6 +80,16 @@ fn all_decoders(
 #[cfg_attr(feature = "symphonia-flac", case("flac", "symphonia"))]
 fn supported_decoders(#[case] format: &'static str, #[case] decoder_name: &'static str) {}
 
+#[cfg(any(
+    feature = "flac",
+    feature = "minimp3",
+    feature = "symphonia-flac",
+    feature = "symphonia-mp3",
+    feature = "symphonia-isomp4",
+    feature = "symphonia-ogg",
+    feature = "symphonia-wav",
+    feature = "wav",
+))]
 #[apply(all_decoders)]
 #[trace]
 fn seek_returns_err_if_unsupported(
@@ -68,6 +102,14 @@ fn seek_returns_err_if_unsupported(
     assert_eq!(res.is_ok(), supports_seek, "decoder: {decoder_name}");
 }
 
+#[cfg(any(
+    feature = "symphonia-flac",
+    feature = "symphonia-mp3",
+    feature = "symphonia-isomp4",
+    feature = "symphonia-ogg",
+    feature = "symphonia-wav",
+    feature = "wav",
+))]
 #[apply(supported_decoders)]
 #[trace]
 fn seek_beyond_end_saturates(#[case] format: &'static str, #[case] decoder_name: &'static str) {
@@ -79,6 +121,14 @@ fn seek_beyond_end_saturates(#[case] format: &'static str, #[case] decoder_name:
     assert!(time_remaining(decoder) < Duration::from_secs(1));
 }
 
+#[cfg(any(
+    feature = "symphonia-flac",
+    feature = "symphonia-mp3",
+    feature = "symphonia-isomp4",
+    feature = "symphonia-ogg",
+    feature = "symphonia-wav",
+    feature = "wav",
+))]
 #[apply(supported_decoders)]
 #[trace]
 fn seek_results_in_correct_remaining_playtime(
@@ -107,6 +157,14 @@ fn seek_results_in_correct_remaining_playtime(
     }
 }
 
+#[cfg(any(
+    feature = "symphonia-flac",
+    feature = "symphonia-mp3",
+    feature = "symphonia-isomp4",
+    feature = "symphonia-ogg",
+    feature = "symphonia-wav",
+    feature = "wav",
+))]
 #[apply(supported_decoders)]
 #[trace]
 fn seek_possible_after_exausting_source(
@@ -121,6 +179,14 @@ fn seek_possible_after_exausting_source(
     assert!(source.next().is_some());
 }
 
+#[cfg(any(
+    feature = "symphonia-flac",
+    feature = "symphonia-mp3",
+    feature = "symphonia-isomp4",
+    feature = "symphonia-ogg",
+    feature = "symphonia-wav",
+    feature = "wav",
+))]
 #[apply(supported_decoders)]
 #[trace]
 fn seek_does_not_break_channel_order(
@@ -175,22 +241,39 @@ fn seek_does_not_break_channel_order(
     }
 }
 
-#[rstest]
-fn seek_beyond_end_saturates_fixed_length_mp3() {
-    let asset = Path::new("assets/music-zero-ms.mp3");
-    let file = std::fs::File::open(asset).unwrap();
-    let mut decoder = rodio::Decoder::new(BufReader::new(file)).unwrap();
+#[cfg(feature = "symphonia-mp3")]
+#[test]
+fn random_access_seeks() {
+    // Decoder::new::<File> does *not* set byte_len and is_seekable
+    let mp3_file = std::fs::File::open("assets/music.mp3").unwrap();
+    let mut decoder = Decoder::new(mp3_file).unwrap();
+    assert!(
+        decoder.try_seek(Duration::from_secs(2)).is_ok(),
+        "forward seek should work without byte_len"
+    );
+    assert!(
+        matches!(
+            decoder.try_seek(Duration::from_secs(1)),
+            Err(SeekError::SymphoniaDecoder(
+                symphonia::SeekError::RandomAccessNotSupported,
+            ))
+        ),
+        "backward seek should fail without byte_len"
+    );
 
-    let res = decoder.try_seek(Duration::from_millis(195000));
-
-    assert!(res.is_ok(), "err: {res:?}");
-    assert!(time_remaining(decoder) < Duration::from_secs(1));
+    // Decoder::try_from::<File> sets byte_len and is_seekable
+    let mut decoder = get_music("mp3");
+    assert!(
+        decoder.try_seek(Duration::from_secs(2)).is_ok(),
+        "forward seek should work with byte_len"
+    );
+    assert!(
+        decoder.try_seek(Duration::from_secs(1)).is_ok(),
+        "backward seek should work with byte_len"
+    );
 }
 
-fn second_channel_beep_range<R: rodio::Source>(source: &mut R) -> std::ops::Range<usize>
-where
-    R: Iterator<Item = f32>,
-{
+fn second_channel_beep_range<R: rodio::Source>(source: &mut R) -> std::ops::Range<usize> {
     let channels = source.channels() as usize;
     let samples: Vec<f32> = source.by_ref().collect();
 

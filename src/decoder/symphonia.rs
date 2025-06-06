@@ -20,11 +20,6 @@ use crate::{
     source, Source,
 };
 
-// Decoder errors are not considered fatal.
-// The correct action is to just get a new packet and try again.
-// But a decode error in more than 3 consecutive packets is fatal.
-const MAX_DECODE_RETRIES: usize = 3;
-
 pub(crate) struct SymphoniaDecoder {
     decoder: Box<dyn Decoder>,
     current_span_offset: usize,
@@ -115,7 +110,6 @@ impl SymphoniaDecoder {
             .zip(stream.codec_params.n_frames)
             .map(|(base, spans)| base.calc_time(spans).into());
 
-        let mut decode_errors: usize = 0;
         let decoded = loop {
             let current_span = match probed.format.next_packet() {
                 Ok(packet) => packet,
@@ -132,12 +126,10 @@ impl SymphoniaDecoder {
                 Ok(decoded) => break decoded,
                 Err(e) => match e {
                     Error::DecodeError(_) => {
-                        decode_errors += 1;
-                        if decode_errors > MAX_DECODE_RETRIES {
-                            return Err(e);
-                        } else {
-                            continue;
-                        }
+                        // Decode errors are intentionally ignored with no retry limit.
+                        // This behavior ensures that the decoder skips over problematic packets
+                        // and continues processing the rest of the stream.
+                        continue;
                     }
                     _ => return Err(e),
                 },
@@ -207,16 +199,20 @@ impl Source for SymphoniaDecoder {
         // Remember the current channel, so we can restore it after seeking.
         let active_channel = self.current_span_offset % self.channels() as usize;
 
-        let seek_res = self
-            .format
-            .seek(
-                self.seek_mode,
-                SeekTo::Time {
-                    time: target.into(),
-                    track_id: None,
-                },
-            )
-            .map_err(SeekError::BaseSeek)?;
+        let seek_res = match self.format.seek(
+            self.seek_mode,
+            SeekTo::Time {
+                time: target.into(),
+                track_id: None,
+            },
+        ) {
+            Err(Error::SeekError(symphonia::core::errors::SeekErrorKind::ForwardOnly)) => {
+                return Err(source::SeekError::SymphoniaDecoder(
+                    SeekError::RandomAccessNotSupported,
+                ));
+            }
+            other => other.map_err(SeekError::Demuxer),
+        }?;
 
         // Seeking is a demuxer operation without the decoder knowing about it,
         // so we need to reset the decoder to make sure it's in sync and prevent
@@ -250,18 +246,28 @@ pub enum SeekError {
     /// This error occurs when the decoder cannot extract time base information from the source.
     /// You may catch this error to try a coarse seek instead.
     AccurateSeekNotSupported,
-    /// Format reader failed to seek
-    BaseSeek(symphonia::core::errors::Error),
+    /// The decoder does not support random access seeking
+    ///
+    /// This error occurs when the source is not seekable or does not have a known byte length.
+    RandomAccessNotSupported,
+    /// Demuxer failed to seek
+    Demuxer(symphonia::core::errors::Error),
 }
 
 impl fmt::Display for SeekError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SeekError::AccurateSeekNotSupported => {
-                write!(f, "Accurate seeking is not supported")
+                write!(
+                    f,
+                    "Accurate seeking is not supported on this file/byte stream that lacks time base information"
+                )
             }
-            SeekError::BaseSeek(err) => {
-                write!(f, "Format reader failed to seek: {:?}", err)
+            SeekError::RandomAccessNotSupported => {
+                write!(f, "The decoder needs to know the length of the file/byte stream to be able to seek backwards. You can set that by using the `DecoderBuilder` or creating a decoder using `Decoder::try_from(some_file)`.")
+            }
+            SeekError::Demuxer(err) => {
+                write!(f, "Demuxer failed to seek: {:?}", err)
             }
         }
     }
@@ -271,7 +277,8 @@ impl std::error::Error for SeekError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             SeekError::AccurateSeekNotSupported => None,
-            SeekError::BaseSeek(err) => Some(err),
+            SeekError::RandomAccessNotSupported => None,
+            SeekError::Demuxer(err) => Some(err),
         }
     }
 }
@@ -309,19 +316,17 @@ impl Iterator for SymphoniaDecoder {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_span_offset >= self.buffer.len() {
-            let mut decode_errors = 0;
             let decoded = loop {
                 let packet = self.format.next_packet().ok()?;
                 let decoded = match self.decoder.decode(&packet) {
                     Ok(decoded) => decoded,
-                    Err(_) => {
-                        decode_errors += 1;
-                        if decode_errors > MAX_DECODE_RETRIES {
-                            return None;
-                        } else {
-                            continue;
-                        }
+                    Err(Error::DecodeError(_)) => {
+                        // Skip over packets that cannot be decoded. This ensures the iterator
+                        // continues processing subsequent packets instead of terminating due to
+                        // non-critical decode errors.
+                        continue;
                     }
+                    Err(_) => return None,
                 };
 
                 // Loop until we get a packet with audio frames. This is necessary because some

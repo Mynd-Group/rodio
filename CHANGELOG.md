@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `Source::amplify_decibel()` method to control volume by decibels.
+- Added `Source::amplify_normalized()` method to perceptually modify volume.
 - Adds a function to write a `Source` to a `wav` file, see `output_to_wav`.
 - Output audio stream buffer size can now be adjusted.
 - Sources for directly generating square waves, triangle waves, square waves, and
@@ -20,8 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   See `README.md` for instructions. (#349)
 - Added `Sample::is_zero()` method for checking zero samples.
 - Added `DecoderBuilder` for improved configuration.
+- Added `Pausable::is_paused()` method for checking if source is paused.
 - Using `Decoder::TryFrom` for `File` now automatically wraps in `BufReader` and sets `byte_len`.
   `TryFrom<Cursor<T>>` and `TryFrom<BufReader>` are also supported.
+- Added `Source::distortion()` method to control distortion effect by `gain` and `threshold`.
 
 ### Changed
 - Breaking: `OutputStreamBuilder` should now be used to initialize an audio output stream.
