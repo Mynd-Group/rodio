@@ -62,6 +62,7 @@ symphonia-vorbis = ["symphonia/vorbis"]
 symphonia-wav = ["symphonia/wav", "symphonia/pcm", "symphonia/adpcm"]
 symphonia-alac = ["symphonia/isomp4", "symphonia/alac"]
 symphonia-aiff = ["symphonia/aiff", "symphonia/pcm"]
+symphonia-opt-simd = ["symphonia/opt-simd"]
 
 [dev-dependencies]
 quickcheck = "1"
